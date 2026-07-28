@@ -10,3 +10,11 @@ export const Task = z.object({
 	completed: z.boolean().default(false),
 	due_date: z.iso.date(),
 });
+export const Product = z.object({
+	id: z.string(),
+	name: z.string(),
+	description: z.string().optional(),
+	price: z.number(),
+	stock: z.number().default(0),
+	active: z.boolean().default(true),
+});
