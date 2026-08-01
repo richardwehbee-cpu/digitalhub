@@ -3,18 +3,75 @@ import { z } from "zod";
 
 export type AppContext = Context<{ Bindings: Env }>;
 
-export const Task = z.object({
-	name: z.string().openapi({ example: "lorem" }),
-	slug: z.string(),
-	description: z.string().optional(),
-	completed: z.boolean().default(false),
-	due_date: z.iso.date(),
+// --- Product ---
+export const ProductSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  description: z.string().optional(),
+  category: z.string().optional(),
+  product_group: z.string().optional(),
+  image: z.string().optional(),
+  cost_price: z.number().optional(),
+  compare_price: z.number().optional(),
+  price: z.number(),
+  profit_percent: z.number().default(30),
+  discount_percent: z.number().default(0),
+  region: z.string().optional(),
+  delivery_type: z.string().optional(),
+  stock: z.number().default(0),
+  active: z.number().default(1),
 });
-export const Product = z.object({
-	id: z.string(),
-	name: z.string(),
-	description: z.string().optional(),
-	price: z.number(),
-	stock: z.number().default(0),
-	active: z.boolean().default(true),
+
+// --- Customer ---
+export const CustomerSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  email: z.string().email(),
+  phone: z.string().optional(),
+  city: z.string().optional(),
 });
+
+// --- Order ---
+export const OrderSchema = z.object({
+  id: z.string(),
+  order_number: z.string(),
+  customer_name: z.string().optional(),
+  customer_email: z.string().optional(),
+  product_id: z.string(),
+  product_name: z.string().optional(),
+  quantity: z.number().int().default(1),
+  unit_price: z.number().optional(),
+  total_price: z.number().optional(),
+  status: z.enum(["pending", "processing", "shipped", "delivered"]).default("pending"),
+  payment_status: z.enum(["pending", "paid", "failed"]).default("pending"),
+});
+
+// --- Supplier ---
+export const SupplierSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  email: z.string().email().optional(),
+  phone: z.string().optional(),
+  company: z.string().optional(),
+  country: z.string().optional(),
+});
+
+// --- Inventory ---
+export const InventorySchema = z.object({
+  id: z.string(),
+  product_id: z.string(),
+  quantity: z.number().int().default(0),
+  min_quantity: z.number().int().default(0),
+  warehouse: z.string().optional(),
+});
+
+// --- Standard API response helper types ---
+export type SuccessResponse<T> = {
+  success: true;
+  data: T;
+};
+
+export type ErrorResponse = {
+  success: false;
+  message: string;
+};

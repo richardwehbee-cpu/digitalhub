@@ -22,24 +22,31 @@ export class ProductList extends OpenAPIRoute {
 	};
 
 	async handle(c: AppContext) {
+		const result = await c.env.DB
+			.prepare(`
+				SELECT
+					id,
+					name,
+					description,
+					category,
+					product_group,
+					image,
+					cost_price,
+					compare_price,
+					price,
+					profit_percent,
+					discount_percent,
+					region,
+					delivery_type,
+					stock,
+					active
+				FROM products
+			`)
+			.all();
+
 		return {
 			success: true,
-			products: [
-				{
-					id: "1",
-					name: "iTunes Gift Card",
-					price: 10,
-					stock: 100,
-					active: true,
-				},
-				{
-					id: "2",
-					name: "Apple Gift Card",
-					price: 25,
-					stock: 50,
-					active: true,
-				},
-			],
+			products: result.results,
 		};
 	}
 }

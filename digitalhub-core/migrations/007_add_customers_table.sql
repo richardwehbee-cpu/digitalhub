@@ -1,0 +1,8 @@
+CREATE TABLE IF NOT EXISTS customers (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  email TEXT NOT NULL UNIQUE,
+  phone TEXT,
+  country TEXT,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
