@@ -1,5 +1,4 @@
-import { inventoryRepository } from "../repositories";
-import { productRepository } from "../repositories";
+import { inventoryRepository } from "../repositories/inventory.repository";
 import { toErrorMessage } from "../lib/errors";
 import type { InventoryItem, QueryOptions } from "../types";
 
@@ -8,7 +7,7 @@ export const inventoryService = {
     return inventoryRepository.findAll(options);
   },
 
-  async getById(id: number): Promise<InventoryItem | null> {
+  async getById(id: number | string): Promise<InventoryItem | null> {
     return inventoryRepository.findById(id);
   },
 
@@ -17,16 +16,15 @@ export const inventoryService = {
     error: string | null;
   }> {
     try {
-      const products = await productRepository.findAll();
-      const synced = await inventoryRepository.syncFromProducts(products);
-      return { data: synced, error: null };
+      const data = await inventoryRepository.syncFromProducts();
+      return { data, error: null };
     } catch (err) {
       return { data: [], error: toErrorMessage(err) };
     }
   },
 
   async update(
-    id: number,
+    id: number | string,
     data: Partial<Omit<InventoryItem, "id">>
   ): Promise<{ data: InventoryItem | null; error: string | null }> {
     try {
@@ -38,11 +36,10 @@ export const inventoryService = {
   },
 
   async delete(
-    id: number
+    id: number | string
   ): Promise<{ success: boolean; error: string | null }> {
     try {
       await inventoryRepository.delete(id);
-      await productRepository.delete(id).catch(() => null);
       return { success: true, error: null };
     } catch (err) {
       return { success: false, error: toErrorMessage(err) };

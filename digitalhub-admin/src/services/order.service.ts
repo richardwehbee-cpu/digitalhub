@@ -1,5 +1,5 @@
-import { orderRepository } from "../repositories";
-import { customerRepository } from "../repositories";
+import { orderRepository } from "../repositories/order.repository";
+import { customerRepository } from "../repositories/customer.repository";
 import { addNotification } from "./notifications";
 import { productService } from "./product.service";
 import {
@@ -14,10 +14,12 @@ type ProductSales = Record<string, { quantity: number; revenue: number }>;
 
 export const orderService = {
   async getAll(options?: QueryOptions): Promise<Order[]> {
-    return orderRepository.findAll(options);
+    const result = await orderRepository.findAll(options);
+    console.log("[service] getAll result:", result.length, result);
+    return result;
   },
 
-  async getById(id: number): Promise<Order | null> {
+  async getById(id: number | string): Promise<Order | null> {
     return orderRepository.findById(id);
   },
 
@@ -50,7 +52,7 @@ export const orderService = {
         return { data: null, error: stockResult.error };
       }
 
-      const order = await orderRepository.create(data);
+      const order = await orderRepository.create(data, unitPrice);
 
       const customerDetails = await customerRepository
         .findByName(data.customerName)
@@ -65,7 +67,7 @@ export const orderService = {
 
       addNotification(
         "order",
-        `New order placed: ${data.productName} for ${data.customerName} ($${data.totalPrice.toFixed(2)}).`
+        `New order placed: ${data.productName} for ${data.customerName} ($${(unitPrice * data.quantity).toFixed(2)}).`
       );
 
       return { data: order, error: null };
@@ -75,15 +77,17 @@ export const orderService = {
   },
 
   async update(
-    id: number,
+    id: number | string,
     data: Partial<Omit<Order, "id">>,
     unitPrice?: number
   ): Promise<{ data: Order | null; error: string | null }> {
     try {
-      const order = await orderRepository.update(id, data);
+      const order = await orderRepository.update(id, data, unitPrice);
 
       if (unitPrice !== undefined) {
-        const existingInvoice = getInvoiceByOrderId(id);
+        const existingInvoice = getInvoiceByOrderId(
+          typeof id === "string" ? parseInt(id) : id
+        );
         const customerDetails = await customerRepository
           .findByName(order.customerName)
           .catch(() => null);
@@ -105,7 +109,7 @@ export const orderService = {
   },
 
   async delete(
-    id: number
+    id: number | string
   ): Promise<{ success: boolean; error: string | null }> {
     try {
       await orderRepository.delete(id);

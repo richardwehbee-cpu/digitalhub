@@ -9,12 +9,15 @@ export function useOrders() {
 
   const load = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       const data = await orderService.getAll();
+      console.log("[hook] load data:", data.length, data);
       setOrders(data);
-      setError(null);
-    } catch {
-      setError("Failed to load orders.");
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Failed to load orders."
+      );
     } finally {
       setLoading(false);
     }
@@ -29,25 +32,25 @@ export function useOrders() {
     unitPrice: number
   ): Promise<{ data: Order | null; error: string | null }> => {
     const result = await orderService.create(data, unitPrice);
-    if (!result.error) await load();
+    await load();
     return result;
   };
 
   const update = async (
-    id: number,
+    id: number | string,
     data: Partial<Omit<Order, "id">>,
     unitPrice?: number
   ): Promise<{ data: Order | null; error: string | null }> => {
     const result = await orderService.update(id, data, unitPrice);
-    if (!result.error) await load();
+    await load();
     return result;
   };
 
   const remove = async (
-    id: number
+    id: number | string
   ): Promise<{ success: boolean; error: string | null }> => {
     const result = await orderService.delete(id);
-    if (result.success) await load();
+    await load();
     return result;
   };
 

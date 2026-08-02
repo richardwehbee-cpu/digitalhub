@@ -9,12 +9,14 @@ export function useSuppliers() {
 
   const load = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       const data = await supplierService.getAll();
       setSuppliers(data);
-      setError(null);
-    } catch {
-      setError("Failed to load suppliers.");
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Failed to load suppliers."
+      );
     } finally {
       setLoading(false);
     }
@@ -33,7 +35,7 @@ export function useSuppliers() {
   };
 
   const update = async (
-    id: number,
+    id: number | string,
     data: Partial<Omit<Supplier, "id">>
   ): Promise<{ data: Supplier | null; error: string | null }> => {
     const result = await supplierService.update(id, data);
@@ -42,7 +44,7 @@ export function useSuppliers() {
   };
 
   const remove = async (
-    id: number
+    id: number | string
   ): Promise<{ success: boolean; error: string | null }> => {
     const result = await supplierService.delete(id);
     if (result.success) await load();

@@ -9,12 +9,15 @@ export function useInventory() {
 
   const load = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       const result = await inventoryService.syncFromProducts();
       setInventory(result.data);
-      setError(result.error);
-    } catch {
-      setError("Failed to load inventory.");
+      if (result.error) setError(result.error);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Failed to load inventory."
+      );
     } finally {
       setLoading(false);
     }
@@ -22,12 +25,10 @@ export function useInventory() {
 
   useEffect(() => {
     load();
-    const interval = setInterval(load, 3000);
-    return () => clearInterval(interval);
   }, [load]);
 
   const update = async (
-    id: number,
+    id: number | string,
     data: Partial<Omit<InventoryItem, "id">>
   ): Promise<{ data: InventoryItem | null; error: string | null }> => {
     const result = await inventoryService.update(id, data);
@@ -36,7 +37,7 @@ export function useInventory() {
   };
 
   const remove = async (
-    id: number
+    id: number | string
   ): Promise<{ success: boolean; error: string | null }> => {
     const result = await inventoryService.delete(id);
     if (result.success) await load();

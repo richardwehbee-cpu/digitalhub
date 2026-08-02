@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useOrders } from "../hooks/useOrders";
 import { useTableState } from "../hooks/useTableState";
 import { useFilteredData } from "../hooks/useFilteredData";
@@ -12,7 +12,6 @@ import {
 } from "../services/invoices";
 import { productRepository } from "../repositories/product.repository";
 import { customerRepository } from "../repositories/customer.repository";
-import { inventoryRepository } from "../repositories/inventory.repository";
 import { addNotification } from "../services/notifications";
 import type { Order, Product, Customer } from "../types";
 import type { Invoice } from "../services/invoices";
@@ -40,24 +39,14 @@ const STATUS_OPTIONS: Order["status"][] = [
 ];
 
 const statusColor: Record<Order["status"], string> = {
-  Pending: "#f59e0b",
+  Pending:    "#f59e0b",
   Processing: "#3b82f6",
-  Shipped: "#8b5cf6",
-  Delivered: "#22c55e",
+  Shipped:    "#8b5cf6",
+  Delivered:  "#22c55e",
 };
 
-function deriveStockStatus(
-  qty: number,
-  min: number
-): "In Stock" | "Low Stock" | "Out of Stock" {
-  if (qty === 0) return "Out of Stock";
-  if (qty <= min) return "Low Stock";
-  return "In Stock";
-}
-
 export default function Orders() {
-  const { orders, loading, error, create, update, remove, refresh } =
-    useOrders();
+  const { orders, loading, error, create, update, remove } = useOrders();
   const { state, setSearch, setSort, setFilter, setPage, setPageSize } =
     useTableState({ sort: "newest" });
 
@@ -69,23 +58,29 @@ export default function Orders() {
   const [quantity, setQuantity] = useState("");
   const [totalPrice, setTotalPrice] = useState(0);
   const [status, setStatus] = useState<Order["status"]>("Pending");
-  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editingId, setEditingId] = useState<number | string | null>(null);
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [stockError, setStockError] = useState("");
   const [viewingInvoice, setViewingInvoice] = useState<Invoice | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [initialLoaded, setInitialLoaded] = useState(false);
 
-  const loadDependencies = async () => {
+  useEffect(() => {
+    if (!loading) setInitialLoaded(true);
+  }, [loading]);
+
+  const loadDependencies = useCallback(async () => {
     const [p, c] = await Promise.all([
       productRepository.findAll(),
       customerRepository.findAll(),
     ]);
     setProducts(p);
     setCustomers(c);
-  };
+  }, []);
 
   useEffect(() => {
     loadDependencies();
-  }, []);
+  }, [loadDependencies]);
 
   useEffect(() => {
     const qty = parseInt(quantity, 10);
@@ -102,7 +97,7 @@ export default function Orders() {
     searchFields: ["customerName", "productName", "status"],
     sort: state.sort,
     sortFieldMap: {
-      name_asc: "customerName",
+      name_asc:  "customerName",
       name_desc: "customerName",
     },
     filters: state.filters,
@@ -110,6 +105,14 @@ export default function Orders() {
     page: state.page,
     pageSize: state.pageSize,
   });
+
+  // Debug log — remove after issue is confirmed resolved
+  console.log(
+    "[page] orders state:", orders.length,
+    "paginated:", paginated.length,
+    "loading:", loading,
+    "initialLoaded:", initialLoaded
+  );
 
   const handleProductChange = (productName: string) => {
     setSelectedProduct(productName);
@@ -128,10 +131,8 @@ export default function Orders() {
   const validate = (): boolean => {
     const next: Record<string, string> = {};
     setStockError("");
-
     if (!selectedCustomer) next.customerName = "Please select a customer.";
     if (!selectedProduct) next.productName = "Please select a product.";
-
     if (!quantity.trim()) {
       next.quantity = "Quantity is required.";
     } else if (
@@ -149,7 +150,6 @@ export default function Orders() {
         return false;
       }
     }
-
     setFormErrors(next);
     return Object.keys(next).length === 0;
   };
@@ -166,84 +166,55 @@ export default function Orders() {
     setEditingId(null);
   };
 
-  const deductStock = async (productName: string, qty: number) => {
-    const allProducts = await productRepository.findAll();
-    const target = allProducts.find((p) => p.name === productName);
-    if (!target) return;
-
-    const newStock = Math.max(0, target.stock - qty);
-    await productRepository.update(target.id, { stock: newStock });
-
-    const allInventory = await inventoryRepository.findAll();
-    const invItem = allInventory.find((i) => i.productName === productName);
-    if (invItem) {
-      await inventoryRepository.update(invItem.id, {
-        stockQuantity: newStock,
-        status: deriveStockStatus(newStock, invItem.minimumStock),
-      });
-    }
-
-    if (newStock === 0) {
-      addNotification(
-        "out_of_stock",
-        `"${productName}" is now out of stock.`
-      );
-    } else if (newStock <= 5) {
-      addNotification(
-        "low_stock",
-        `Low stock alert: "${productName}" has only ${newStock} unit(s) left.`
-      );
-    }
-
-    await loadDependencies();
-  };
-
   const handleSubmit = async () => {
-    if (!validate()) return;
+    if (!validate() || submitting) return;
+    setSubmitting(true);
 
     const qty = parseInt(quantity, 10);
     const total = parseFloat((unitPrice * qty).toFixed(2));
 
-    if (editingId !== null) {
-      const result = await update(
-        editingId,
-        {
-          customerName: selectedCustomer,
-          productName: selectedProduct,
-          quantity: qty,
-          totalPrice: total,
-          status,
-        },
-        unitPrice
-      );
-      if (result.error) {
-        setFormErrors({ submit: result.error });
-        return;
+    try {
+      if (editingId !== null) {
+        const result = await update(
+          editingId,
+          {
+            customerName: selectedCustomer,
+            productName:  selectedProduct,
+            quantity:     qty,
+            totalPrice:   total,
+            status,
+          },
+          unitPrice
+        );
+        if (result.error) {
+          setFormErrors({ submit: result.error });
+          return;
+        }
+      } else {
+        const result = await create(
+          {
+            customerName: selectedCustomer,
+            productName:  selectedProduct,
+            quantity:     qty,
+            totalPrice:   total,
+            status,
+          },
+          unitPrice
+        );
+        if (result.error) {
+          setFormErrors({ submit: result.error });
+          return;
+        }
+        addNotification(
+          "order",
+          `New order placed: ${selectedProduct} for ${selectedCustomer} ($${total.toFixed(2)}).`
+        );
+        await loadDependencies();
       }
       clearForm();
-      return;
+    } finally {
+      setSubmitting(false);
     }
-
-    await deductStock(selectedProduct, qty);
-
-    const result = await create(
-      {
-        customerName: selectedCustomer,
-        productName: selectedProduct,
-        quantity: qty,
-        totalPrice: total,
-        status,
-      },
-      unitPrice
-    );
-
-    if (result.error) {
-      setFormErrors({ submit: result.error });
-      return;
-    }
-
-    await refresh();
-    clearForm();
   };
 
   const handleEdit = (order: Order) => {
@@ -259,7 +230,7 @@ export default function Orders() {
     setStockError("");
   };
 
-  const handleDelete = async (id: number) => {
+  const handleDelete = async (id: number | string) => {
     const order = orders.find((o) => o.id === id);
     if (!order) return;
     if (
@@ -272,8 +243,10 @@ export default function Orders() {
     if (editingId === id) clearForm();
   };
 
-  const handleViewInvoice = (orderId: number) => {
-    const existing = getInvoiceByOrderId(orderId);
+  const handleViewInvoice = (orderId: number | string) => {
+    const numericId =
+      typeof orderId === "string" ? parseInt(orderId) : orderId;
+    const existing = getInvoiceByOrderId(numericId);
     if (existing) {
       setViewingInvoice(existing);
       return;
@@ -295,20 +268,17 @@ export default function Orders() {
     border: "1px solid #ccc",
     padding: "10px",
   };
-
   const errorStyle: React.CSSProperties = {
     color: "red",
     fontSize: "12px",
     marginTop: "2px",
   };
-
   const inputStyle: React.CSSProperties = {
     width: "100%",
     padding: "8px",
     boxSizing: "border-box",
     fontSize: "13px",
   };
-
   const availableStock = getAvailableStock();
 
   return (
@@ -324,7 +294,6 @@ export default function Orders() {
       <p>Manage your orders here.</p>
       <hr />
 
-      {/* Form */}
       <div
         style={{
           display: "grid",
@@ -335,14 +304,7 @@ export default function Orders() {
         }}
       >
         <div>
-          <label
-            style={{
-              fontSize: "12px",
-              fontWeight: 600,
-              display: "block",
-              marginBottom: "4px",
-            }}
-          >
+          <label style={{ fontSize: "12px", fontWeight: 600, display: "block", marginBottom: "4px" }}>
             Customer
           </label>
           <select
@@ -352,7 +314,7 @@ export default function Orders() {
           >
             <option value="">— Select Customer —</option>
             {customers.map((c) => (
-              <option key={c.id} value={c.name}>
+              <option key={String(c.id)} value={c.name}>
                 {c.name}
               </option>
             ))}
@@ -363,14 +325,7 @@ export default function Orders() {
         </div>
 
         <div>
-          <label
-            style={{
-              fontSize: "12px",
-              fontWeight: 600,
-              display: "block",
-              marginBottom: "4px",
-            }}
-          >
+          <label style={{ fontSize: "12px", fontWeight: 600, display: "block", marginBottom: "4px" }}>
             Product
           </label>
           <select
@@ -380,7 +335,7 @@ export default function Orders() {
           >
             <option value="">— Select Product —</option>
             {products.map((p) => (
-              <option key={p.id} value={p.name} disabled={p.stock === 0}>
+              <option key={String(p.id)} value={p.name} disabled={p.stock === 0}>
                 {p.name} — ${p.price} (Stock: {p.stock})
               </option>
             ))}
@@ -408,14 +363,7 @@ export default function Orders() {
         </div>
 
         <div>
-          <label
-            style={{
-              fontSize: "12px",
-              fontWeight: 600,
-              display: "block",
-              marginBottom: "4px",
-            }}
-          >
+          <label style={{ fontSize: "12px", fontWeight: 600, display: "block", marginBottom: "4px" }}>
             Unit Price (AUD)
           </label>
           <input
@@ -423,24 +371,12 @@ export default function Orders() {
             value={selectedProduct ? `$${unitPrice.toFixed(2)}` : ""}
             readOnly
             placeholder="Auto-filled"
-            style={{
-              ...inputStyle,
-              background: "#f5f5f5",
-              color: "#555",
-              cursor: "not-allowed",
-            }}
+            style={{ ...inputStyle, background: "#f5f5f5", color: "#555", cursor: "not-allowed" }}
           />
         </div>
 
         <div>
-          <label
-            style={{
-              fontSize: "12px",
-              fontWeight: 600,
-              display: "block",
-              marginBottom: "4px",
-            }}
-          >
+          <label style={{ fontSize: "12px", fontWeight: 600, display: "block", marginBottom: "4px" }}>
             Quantity
           </label>
           <input
@@ -458,14 +394,7 @@ export default function Orders() {
         </div>
 
         <div>
-          <label
-            style={{
-              fontSize: "12px",
-              fontWeight: 600,
-              display: "block",
-              marginBottom: "4px",
-            }}
-          >
+          <label style={{ fontSize: "12px", fontWeight: 600, display: "block", marginBottom: "4px" }}>
             Total Price (AUD)
           </label>
           <input
@@ -473,24 +402,12 @@ export default function Orders() {
             value={totalPrice > 0 ? `$${totalPrice.toFixed(2)}` : ""}
             readOnly
             placeholder="Auto-calculated"
-            style={{
-              ...inputStyle,
-              background: "#f5f5f5",
-              color: "#555",
-              cursor: "not-allowed",
-            }}
+            style={{ ...inputStyle, background: "#f5f5f5", color: "#555", cursor: "not-allowed" }}
           />
         </div>
 
         <div>
-          <label
-            style={{
-              fontSize: "12px",
-              fontWeight: 600,
-              display: "block",
-              marginBottom: "4px",
-            }}
-          >
+          <label style={{ fontSize: "12px", fontWeight: 600, display: "block", marginBottom: "4px" }}>
             Status
           </label>
           <select
@@ -499,9 +416,7 @@ export default function Orders() {
             style={inputStyle}
           >
             {STATUS_OPTIONS.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
+              <option key={s} value={s}>{s}</option>
             ))}
           </select>
         </div>
@@ -548,13 +463,21 @@ export default function Orders() {
         )}
         <button
           onClick={handleSubmit}
-          style={{ padding: "8px 16px", cursor: "pointer" }}
+          disabled={submitting}
+          style={{
+            padding: "8px 16px",
+            cursor: submitting ? "not-allowed" : "pointer",
+            opacity: submitting ? 0.6 : 1,
+          }}
         >
-          {editingId !== null ? "Save Changes" : "+ Add Order"}
+          {submitting
+            ? "Saving…"
+            : editingId !== null
+            ? "Save Changes"
+            : "+ Add Order"}
         </button>
       </div>
 
-      {/* Search + Filter */}
       <SearchFilterBar
         search={state.search}
         onSearchChange={setSearch}
@@ -570,13 +493,17 @@ export default function Orders() {
         placeholder="Search by customer, product or status..."
       />
 
-      {/* Table */}
-      {loading ? (
+      {!initialLoaded && loading ? (
         <p style={{ color: "#999", fontSize: "13px" }}>Loading orders...</p>
       ) : error ? (
         <p style={{ color: "red", fontSize: "13px" }}>{error}</p>
       ) : (
         <>
+          {loading && (
+            <p style={{ color: "#999", fontSize: "12px", marginBottom: "8px" }}>
+              Refreshing…
+            </p>
+          )}
           <div style={{ overflowX: "auto" }}>
             <table
               style={{
@@ -602,11 +529,7 @@ export default function Orders() {
                   <tr>
                     <td
                       colSpan={8}
-                      style={{
-                        ...cellStyle,
-                        textAlign: "center",
-                        color: "#999",
-                      }}
+                      style={{ ...cellStyle, textAlign: "center", color: "#999" }}
                     >
                       No orders found.
                     </td>
@@ -614,13 +537,15 @@ export default function Orders() {
                 ) : (
                   paginated.map((order) => (
                     <tr
-                      key={order.id}
+                      key={String(order.id)}
                       style={{
                         background:
                           editingId === order.id ? "#fffbe6" : "transparent",
                       }}
                     >
-                      <td style={cellStyle}>#{order.id}</td>
+                      <td style={cellStyle}>
+                        {String(order.id).slice(0, 8)}…
+                      </td>
                       <td style={cellStyle}>{order.customerName}</td>
                       <td style={cellStyle}>{order.productName}</td>
                       <td style={cellStyle}>{order.quantity}</td>

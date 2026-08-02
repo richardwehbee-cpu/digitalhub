@@ -30,7 +30,7 @@ function safeNum(val: unknown): number {
   return isNaN(n) ? 0 : n;
 }
 
-export function useFilteredData<T extends { id: number }>({
+export function useFilteredData<T extends { id: number | string }>({
   data,
   search,
   searchFields,
@@ -65,51 +65,49 @@ export function useFilteredData<T extends { id: number }>({
     // Sort
     switch (sort) {
       case "name_asc": {
-        const field =
-          sortFieldMap["name_asc"] ?? ("name" as keyof T);
+        const field = sortFieldMap["name_asc"] ?? ("name" as keyof T);
         result.sort((a, b) =>
           safeStr(a[field]).localeCompare(safeStr(b[field]))
         );
         break;
       }
       case "name_desc": {
-        const field =
-          sortFieldMap["name_desc"] ?? ("name" as keyof T);
+        const field = sortFieldMap["name_desc"] ?? ("name" as keyof T);
         result.sort((a, b) =>
           safeStr(b[field]).localeCompare(safeStr(a[field]))
         );
         break;
       }
       case "price_asc": {
-        const field =
-          sortFieldMap["price_asc"] ?? ("price" as keyof T);
+        const field = sortFieldMap["price_asc"] ?? ("price" as keyof T);
         result.sort((a, b) => safeNum(a[field]) - safeNum(b[field]));
         break;
       }
       case "price_desc": {
-        const field =
-          sortFieldMap["price_desc"] ?? ("price" as keyof T);
+        const field = sortFieldMap["price_desc"] ?? ("price" as keyof T);
         result.sort((a, b) => safeNum(b[field]) - safeNum(a[field]));
         break;
       }
       case "stock_asc": {
-        const field =
-          sortFieldMap["stock_asc"] ?? ("stock" as keyof T);
+        const field = sortFieldMap["stock_asc"] ?? ("stock" as keyof T);
         result.sort((a, b) => safeNum(a[field]) - safeNum(b[field]));
         break;
       }
       case "stock_desc": {
-        const field =
-          sortFieldMap["stock_desc"] ?? ("stock" as keyof T);
+        const field = sortFieldMap["stock_desc"] ?? ("stock" as keyof T);
         result.sort((a, b) => safeNum(b[field]) - safeNum(a[field]));
         break;
       }
       case "oldest":
-        result.sort((a, b) => a.id - b.id);
+        result.sort((a, b) =>
+          String(a.id).localeCompare(String(b.id))
+        );
         break;
       case "newest":
       default:
-        result.sort((a, b) => b.id - a.id);
+        result.sort((a, b) =>
+          String(b.id).localeCompare(String(a.id))
+        );
         break;
     }
 

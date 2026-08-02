@@ -1,4 +1,4 @@
-import { categoryRepository } from "../repositories";
+import { categoryRepository } from "../repositories/category.repository";
 import { toErrorMessage } from "../lib/errors";
 import type { Category, QueryOptions } from "../types";
 
@@ -7,7 +7,7 @@ export const categoryService = {
     return categoryRepository.findAll(options);
   },
 
-  async getById(id: number): Promise<Category | null> {
+  async getById(id: number | string): Promise<Category | null> {
     return categoryRepository.findById(id);
   },
 
@@ -27,7 +27,7 @@ export const categoryService = {
   },
 
   async update(
-    id: number,
+    id: number | string,
     data: Partial<Omit<Category, "id">>
   ): Promise<{ data: Category | null; error: string | null }> {
     try {
@@ -39,7 +39,7 @@ export const categoryService = {
   },
 
   async delete(
-    id: number
+    id: number | string
   ): Promise<{ success: boolean; error: string | null }> {
     try {
       await categoryRepository.delete(id);

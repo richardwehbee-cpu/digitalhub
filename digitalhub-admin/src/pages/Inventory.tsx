@@ -29,8 +29,8 @@ const STATUS_OPTIONS: InventoryItem["status"][] = [
 ];
 
 const statusColor: Record<InventoryItem["status"], string> = {
-  "In Stock": "#22c55e",
-  "Low Stock": "#f59e0b",
+  "In Stock":     "#22c55e",
+  "Low Stock":    "#f59e0b",
   "Out of Stock": "#ef4444",
 };
 
@@ -39,7 +39,7 @@ export default function Inventory() {
   const { state, setSearch, setSort, setFilter, setPage, setPageSize } =
     useTableState({ sort: "newest" });
 
-  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editingId, setEditingId] = useState<number | string | null>(null);
   const [editSku, setEditSku] = useState("");
   const [editSupplier, setEditSupplier] = useState("");
   const [editMinimumStock, setEditMinimumStock] = useState("");
@@ -48,8 +48,13 @@ export default function Inventory() {
     useState<InventoryItem["status"]>("In Stock");
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
+  // Guard: ensure inventory is always an array before passing to useFilteredData
+  const safeInventory: InventoryItem[] = Array.isArray(inventory)
+    ? inventory
+    : [];
+
   const { paginated, total } = useFilteredData<InventoryItem>({
-    data: inventory,
+    data: safeInventory,
     search: state.search,
     searchFields: [
       "productName",
@@ -61,9 +66,9 @@ export default function Inventory() {
     ],
     sort: state.sort,
     sortFieldMap: {
-      name_asc: "productName",
-      name_desc: "productName",
-      stock_asc: "stockQuantity",
+      name_asc:   "productName",
+      name_desc:  "productName",
+      stock_asc:  "stockQuantity",
       stock_desc: "stockQuantity",
     },
     filters: state.filters,
@@ -101,11 +106,11 @@ export default function Inventory() {
   const handleSaveEdit = async () => {
     if (!validate() || editingId === null) return;
     const result = await update(editingId, {
-      sku: editSku.trim(),
-      supplier: editSupplier.trim(),
-      minimumStock: parseInt(editMinimumStock, 10),
+      sku:              editSku.trim(),
+      supplier:         editSupplier.trim(),
+      minimumStock:     parseInt(editMinimumStock, 10),
       warehouseLocation: editWarehouseLocation.trim(),
-      status: editStatus,
+      status:           editStatus,
     });
     if (result.error) {
       setFormErrors({ submit: result.error });
@@ -114,12 +119,12 @@ export default function Inventory() {
     clearForm();
   };
 
-  const handleDelete = async (id: number) => {
-    const item = inventory.find((i) => i.id === id);
+  const handleDelete = async (id: number | string) => {
+    const item = safeInventory.find((i) => i.id === id);
     if (!item) return;
     if (
       !window.confirm(
-        `Remove "${item.productName}" from inventory? This will also delete the product.`
+        `Remove "${item.productName}" from inventory?`
       )
     )
       return;
@@ -159,12 +164,12 @@ export default function Inventory() {
     <div>
       <h1>📦 Inventory</h1>
       <p>
-        Live inventory synced from Products. Stock updates automatically after
+        Live inventory synced from the API. Stock updates automatically after
         orders.
       </p>
       <hr />
 
-      {/* Edit form — only shown when editing */}
+      {/* Edit form */}
       {editingId !== null && (
         <div
           style={{
@@ -178,7 +183,7 @@ export default function Inventory() {
         >
           <h3 style={{ marginTop: 0, marginBottom: "12px" }}>
             Edit —{" "}
-            {inventory.find((i) => i.id === editingId)?.productName ?? ""}
+            {safeInventory.find((i) => i.id === editingId)?.productName ?? ""}
           </h3>
 
           <div
@@ -309,11 +314,7 @@ export default function Inventory() {
           )}
 
           <div
-            style={{
-              marginTop: "12px",
-              display: "flex",
-              gap: "8px",
-            }}
+            style={{ marginTop: "12px", display: "flex", gap: "8px" }}
           >
             <button
               onClick={handleSaveEdit}
@@ -393,20 +394,22 @@ export default function Inventory() {
                         color: "#999",
                       }}
                     >
-                      No inventory items found. Add products on the Products
-                      page.
+                      No inventory items found. Add products and create orders
+                      to populate inventory.
                     </td>
                   </tr>
                 ) : (
                   paginated.map((item) => (
                     <tr
-                      key={item.id}
+                      key={String(item.id)}
                       style={{
                         background:
                           editingId === item.id ? "#fffbe6" : "transparent",
                       }}
                     >
-                      <td style={cellStyle}>{item.id}</td>
+                      <td style={cellStyle}>
+                        {String(item.id).slice(0, 8)}…
+                      </td>
                       <td style={cellStyle}>{item.productName}</td>
                       <td style={cellStyle}>{item.sku}</td>
                       <td style={cellStyle}>{item.category}</td>

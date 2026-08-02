@@ -1,4 +1,4 @@
-import { customerRepository } from "../repositories";
+import { customerRepository } from "../repositories/customer.repository";
 import { addNotification } from "./notifications";
 import { toErrorMessage } from "../lib/errors";
 import type { Customer, QueryOptions } from "../types";
@@ -8,7 +8,7 @@ export const customerService = {
     return customerRepository.findAll(options);
   },
 
-  async getById(id: number): Promise<Customer | null> {
+  async getById(id: number | string): Promise<Customer | null> {
     return customerRepository.findById(id);
   },
 
@@ -32,7 +32,7 @@ export const customerService = {
   },
 
   async update(
-    id: number,
+    id: number | string,
     data: Partial<Omit<Customer, "id">>
   ): Promise<{ data: Customer | null; error: string | null }> {
     try {
@@ -44,7 +44,7 @@ export const customerService = {
   },
 
   async delete(
-    id: number
+    id: number | string
   ): Promise<{ success: boolean; error: string | null }> {
     try {
       await customerRepository.delete(id);

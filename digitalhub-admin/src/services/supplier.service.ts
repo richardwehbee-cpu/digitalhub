@@ -1,4 +1,4 @@
-import { supplierRepository } from "../repositories";
+import { supplierRepository } from "../repositories/supplier.repository";
 import { toErrorMessage } from "../lib/errors";
 import type { Supplier, QueryOptions } from "../types";
 
@@ -7,7 +7,7 @@ export const supplierService = {
     return supplierRepository.findAll(options);
   },
 
-  async getById(id: number): Promise<Supplier | null> {
+  async getById(id: number | string): Promise<Supplier | null> {
     return supplierRepository.findById(id);
   },
 
@@ -27,7 +27,7 @@ export const supplierService = {
   },
 
   async update(
-    id: number,
+    id: number | string,
     data: Partial<Omit<Supplier, "id">>
   ): Promise<{ data: Supplier | null; error: string | null }> {
     try {
@@ -39,7 +39,7 @@ export const supplierService = {
   },
 
   async delete(
-    id: number
+    id: number | string
   ): Promise<{ success: boolean; error: string | null }> {
     try {
       await supplierRepository.delete(id);

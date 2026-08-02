@@ -1,3 +1,8 @@
+// localStorage is still used by Settings, Profile, Login,
+// Notifications, and Invoices — those are not API-backed yet.
+// Products, Customers, Orders, Suppliers, Inventory, Categories
+// now use the API repository instead.
+
 export function lsGet<T>(key: string): T[] {
   try {
     const stored = localStorage.getItem(key);
@@ -38,6 +43,7 @@ export function lsClear(): void {
   } catch {}
 }
 
-export function generateId(): number {
-  return Date.now() + Math.floor(Math.random() * 1000);
+// UUID generation — kept here for non-API uses (notifications, invoices)
+export function generateId(): string {
+  return crypto.randomUUID();
 }

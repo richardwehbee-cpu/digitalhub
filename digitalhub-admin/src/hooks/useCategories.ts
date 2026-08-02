@@ -9,12 +9,14 @@ export function useCategories() {
 
   const load = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       const data = await categoryService.getAll();
       setCategories(data);
-      setError(null);
-    } catch {
-      setError("Failed to load categories.");
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Failed to load categories."
+      );
     } finally {
       setLoading(false);
     }
@@ -33,7 +35,7 @@ export function useCategories() {
   };
 
   const update = async (
-    id: number,
+    id: number | string,
     data: Partial<Omit<Category, "id">>
   ): Promise<{ data: Category | null; error: string | null }> => {
     const result = await categoryService.update(id, data);
@@ -42,7 +44,7 @@ export function useCategories() {
   };
 
   const remove = async (
-    id: number
+    id: number | string
   ): Promise<{ success: boolean; error: string | null }> => {
     const result = await categoryService.delete(id);
     if (result.success) await load();
