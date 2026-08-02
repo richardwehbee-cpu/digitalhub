@@ -1,37 +1,54 @@
 import { fromHono } from "chanfana";
 import { Hono } from "hono";
+import { cors } from "hono/cors";
 
 import { ProductCreate } from "./endpoints/productCreate";
 import { ProductList } from "./endpoints/productList";
 import { ProductFetch } from "./endpoints/productFetch";
 import { ProductUpdate } from "./endpoints/productUpdate";
 import { ProductRemove } from "./endpoints/productRemove";
-
 import { CustomerCreate } from "./endpoints/customerCreate";
 import { CustomerList } from "./endpoints/customerList";
 import { CustomerFetch } from "./endpoints/customerFetch";
 import { CustomerUpdate } from "./endpoints/customerUpdate";
 import { CustomerDelete } from "./endpoints/customerDelete";
-
 import { OrderCreate } from "./endpoints/orderCreate";
 import { OrderList } from "./endpoints/orderList";
 import { OrderFetch } from "./endpoints/orderFetch";
 import { OrderUpdate } from "./endpoints/orderUpdate";
 import { OrderDelete } from "./endpoints/orderDelete";
-
 import { SupplierCreate } from "./endpoints/supplierCreate";
 import { SupplierList } from "./endpoints/supplierList";
 import { SupplierFetch } from "./endpoints/supplierFetch";
 import { SupplierUpdate } from "./endpoints/supplierUpdate";
 import { SupplierRemove } from "./endpoints/supplierRemove";
-
 import { InventoryCreate } from "./endpoints/inventoryCreate";
 import { InventoryList } from "./endpoints/inventoryList";
 import { InventoryFetch } from "./endpoints/inventoryFetch";
 import { InventoryUpdate } from "./endpoints/inventoryUpdate";
 import { InventoryRemove } from "./endpoints/inventoryRemove";
+import { CategoryCreate } from "./endpoints/categoryCreate";
+import { CategoryList } from "./endpoints/categoryList";
+import { CategoryFetch } from "./endpoints/categoryFetch";
+import { CategoryUpdate } from "./endpoints/categoryUpdate";
+import { CategoryRemove } from "./endpoints/categoryRemove";
 
 const app = new Hono();
+
+app.use(
+  "/api/*",
+  cors({
+    origin: (origin) => {
+      const allowed = [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+      ];
+      return allowed.includes(origin) ? origin : "";
+    },
+    allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowHeaders: ["Content-Type", "Authorization"],
+  })
+);
 
 const openapi = fromHono(app, {
   docs_url: "/",
@@ -71,5 +88,12 @@ openapi.get("/api/inventory", InventoryList);
 openapi.get("/api/inventory/:id", InventoryFetch);
 openapi.put("/api/inventory/:id", InventoryUpdate);
 openapi.delete("/api/inventory/:id", InventoryRemove);
+
+// Categories
+openapi.post("/api/categories", CategoryCreate);
+openapi.get("/api/categories", CategoryList);
+openapi.get("/api/categories/:id", CategoryFetch);
+openapi.put("/api/categories/:id", CategoryUpdate);
+openapi.delete("/api/categories/:id", CategoryRemove);
 
 export default app;

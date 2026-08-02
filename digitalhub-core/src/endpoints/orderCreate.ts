@@ -27,6 +27,12 @@ export class OrderCreate extends OpenAPIRoute {
       "200": {
         description: "Order created",
       },
+      "404": {
+        description: "Product not found",
+      },
+      "400": {
+        description: "Insufficient stock",
+      },
     },
   };
 
@@ -36,60 +42,38 @@ export class OrderCreate extends OpenAPIRoute {
 
     // Get product price
     const product = await c.env.DB
-      .prepare(`
-        SELECT id, name, price
-        FROM products
-        WHERE id = ?
-      `)
+      .prepare(
+        `SELECT id, name, price, stock FROM products WHERE id = ?`
+      )
       .bind(order.product_id)
-      .first<{
-        id: string;
-        name: string;
-        price: number;
-      }>();
+      .first<{ id: string; name: string; price: number; stock: number }>();
 
     if (!product) {
-      return {
-        success: false,
-        message: "Product not found",
-      };
+      return c.json(
+        { success: false, message: "Product not found" },
+        404
+      );
     }
 
-    // Check inventory
-    const inventory = await c.env.DB
-      .prepare(`
-        SELECT id, product_id, quantity
-        FROM inventory
-        WHERE product_id = ?
-      `)
-      .bind(order.product_id)
-      .first<{
-        id: string;
-        product_id: string;
-        quantity: number;
-      }>();
-
-    if (!inventory) {
-      return {
-        success: false,
-        message: "Product not found in inventory",
-      };
-    }
-
-    if (inventory.quantity < order.quantity) {
-      return {
-        success: false,
-        message: "Insufficient stock",
-      };
+    // Check stock on products table directly
+    // Inventory row is optional — not all products have been synced
+    if (product.stock < order.quantity) {
+      return c.json(
+        {
+          success: false,
+          message: `Insufficient stock. Available: ${product.stock}`,
+        },
+        400
+      );
     }
 
     const unitPrice = product.price;
     const totalPrice = unitPrice * order.quantity;
 
-    // Create order
+    // Insert order
     await c.env.DB
-      .prepare(`
-        INSERT INTO orders (
+      .prepare(
+        `INSERT INTO orders (
           id,
           order_number,
           customer_name,
@@ -100,8 +84,8 @@ export class OrderCreate extends OpenAPIRoute {
           unit_price,
           total_price
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      )
       .bind(
         order.id,
         order.order_number,
@@ -115,25 +99,32 @@ export class OrderCreate extends OpenAPIRoute {
       )
       .run();
 
-    // Update inventory
+    // Decrement stock on products table
     await c.env.DB
-      .prepare(`
-        UPDATE inventory
-        SET quantity = quantity - ?
-        WHERE product_id = ?
-      `)
+      .prepare(
+        `UPDATE products SET stock = stock - ? WHERE id = ?`
+      )
       .bind(order.quantity, order.product_id)
       .run();
 
-    return {
+    // Decrement inventory row if one exists — best effort, not required
+    await c.env.DB
+      .prepare(
+        `UPDATE inventory SET quantity = quantity - ?
+         WHERE product_id = ? AND quantity >= ?`
+      )
+      .bind(order.quantity, order.product_id, order.quantity)
+      .run();
+
+    return c.json({
       success: true,
       message: "Order created successfully",
       order: {
         ...order,
         product_name: product.name,
-        unit_price: unitPrice,
-        total_price: totalPrice,
+        unit_price:   unitPrice,
+        total_price:  totalPrice,
       },
-    };
+    });
   }
 }
