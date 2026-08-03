@@ -1,9 +1,17 @@
 import type { Context } from "hono";
 import { z } from "zod";
 
+// Env is declared in worker-configuration.d.ts by wrangler.
+// We extend it here with variables not tracked by wrangler bindings.
+export type Env = {
+  DB: D1Database;
+  JWT_SECRET: string;
+};
+
 export type AppContext = Context<{ Bindings: Env }>;
 
-// --- Product ---
+// --- Domain Schemas ---
+
 export const ProductSchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -22,7 +30,6 @@ export const ProductSchema = z.object({
   active: z.number().default(1),
 });
 
-// --- Customer ---
 export const CustomerSchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -31,7 +38,6 @@ export const CustomerSchema = z.object({
   city: z.string().optional(),
 });
 
-// --- Order ---
 export const OrderSchema = z.object({
   id: z.string(),
   order_number: z.string(),
@@ -42,11 +48,14 @@ export const OrderSchema = z.object({
   quantity: z.number().int().default(1),
   unit_price: z.number().optional(),
   total_price: z.number().optional(),
-  status: z.enum(["pending", "processing", "shipped", "delivered"]).default("pending"),
-  payment_status: z.enum(["pending", "paid", "failed"]).default("pending"),
+  status: z
+    .enum(["pending", "processing", "shipped", "delivered"])
+    .default("pending"),
+  payment_status: z
+    .enum(["pending", "paid", "failed"])
+    .default("pending"),
 });
 
-// --- Supplier ---
 export const SupplierSchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -56,7 +65,6 @@ export const SupplierSchema = z.object({
   country: z.string().optional(),
 });
 
-// --- Inventory ---
 export const InventorySchema = z.object({
   id: z.string(),
   product_id: z.string(),
@@ -65,7 +73,13 @@ export const InventorySchema = z.object({
   warehouse: z.string().optional(),
 });
 
-// --- Standard API response helper types ---
+export const CategorySchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  description: z.string().optional(),
+});
+
+// --- Standard response types ---
 export type SuccessResponse<T> = {
   success: true;
   data: T;
