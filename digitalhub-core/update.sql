@@ -1,0 +1,3 @@
+UPDATE users
+SET password_hash='pbkdf2$100000$9fea92f8e2888fc89e8cf55a2c6a90df$ee5f434923e35b2b4fee1875d3ad540cc1a72471b27d06642eabc952a474e595'
+WHERE email='admin@digitalhub.com';

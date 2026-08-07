@@ -1,27 +1,64 @@
 import { OpenAPIRoute } from "chanfana";
 import type { AppContext } from "../types";
+import { verifyJWT } from "../lib/crypto";
 
 export class OrderList extends OpenAPIRoute {
-	schema = {
-		tags: ["Orders"],
-		summary: "List Orders",
-		responses: {
-			"200": {
-				description: "Orders retrieved successfully",
-			},
-		},
-	};
+  schema = {
+    tags: ["Orders"],
+    summary: "List Orders",
+    responses: {
+      "200": {
+        description: "Orders retrieved successfully",
+      },
+    },
+  };
 
-	async handle(c: AppContext) {
-		const { results } = await c.env.DB.prepare(
-			`SELECT *
-			 FROM orders
-			 ORDER BY created_at DESC`
-		).all();
+  async handle(c: AppContext) {
+    // ── Authentication & Authorization ──
+    const secret = c.env.JWT_SECRET;
+    if (!secret) {
+      return c.json({ success: false, message: "Server misconfiguration" }, 500);
+    }
 
-		return {
-			success: true,
-			orders: results,
-		};
-	}
+    const authHeader = c.req.header("Authorization") ?? "";
+    const token = authHeader.replace("Bearer ", "").trim();
+    if (!token) {
+      return c.json({ success: false, message: "Unauthorized" }, 401);
+    }
+
+    const payload = await verifyJWT(token, secret);
+    if (!payload) {
+      return c.json({ success: false, message: "Invalid or expired token" }, 401);
+    }
+
+    // Check role (Admin, Manager, or Viewer)
+    const user = await c.env.DB
+      .prepare("SELECT role FROM users WHERE id = ?")
+      .bind(payload.sub)
+      .first<{ role: string }>();
+
+    if (!user || (user.role !== "Admin" && user.role !== "Manager" && user.role !== "Viewer")) {
+      return c.json({ success: false, message: "Forbidden: Insufficient permissions" }, 403);
+    }
+
+    // ── Fetch orders ──
+    try {
+      const { results } = await c.env.DB.prepare(
+        `SELECT *
+         FROM orders
+         ORDER BY created_at DESC`
+      ).all();
+
+      return c.json({
+        success: true,
+        orders: results,
+      });
+    } catch (error) {
+      console.error("Order list failed:", error);
+      return c.json(
+        { success: false, message: "Failed to fetch orders" },
+        500
+      );
+    }
+  }
 }

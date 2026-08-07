@@ -1,27 +1,29 @@
+/**
+ * For more details on how to configure Wrangler, refer to:
+ * https://developers.cloudflare.com/workers/wrangler/configuration/
+ */
 {
-	"compilerOptions": {
-		/* Base Options: */
-		"esModuleInterop": true,
-		"skipLibCheck": true,
-		"target": "es2024",
-		"verbatimModuleSyntax": false,
-		"allowJs": true,
-		"resolveJsonModule": true,
-		"moduleDetection": "force",
-		/* Strictness */
-		"strict": true,
-		"noUncheckedIndexedAccess": true,
-		/* If NOT transpiling with TypeScript: */
-		"moduleResolution": "Bundler",
-		"module": "es2022",
-		"noEmit": true,
-		"lib": ["es2024"],
-		"types": [
-			"./worker-configuration.d.ts",
-			"@types/node",
-			"node"
-		]
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "digitalhub-core",
+	"main": "src/index.ts",
+	"compatibility_date": "2026-07-28",
+
+	"observability": {
+		"enabled": true
 	},
-	"exclude": ["node_modules", "dist", "tests"],
-	"include": ["src", "worker-configuration.d.ts"]
+
+	"upload_source_maps": true,
+
+	"compatibility_flags": [
+		"nodejs_compat"
+	],
+
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "digitalhub-db",
+			"database_id": "dc274ead-7305-4960-8c4f-a9675ef473f1"
+		}
+	]
+
 }

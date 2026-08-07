@@ -1,11 +1,12 @@
 import { OpenAPIRoute } from "chanfana";
 import { z } from "zod";
 import type { AppContext } from "../types";
+import { verifyJWT } from "../lib/crypto";
 
 export class SupplierFetch extends OpenAPIRoute {
   schema = {
     tags: ["Suppliers"],
-    summary: "Get Supplier By ID",
+    summary: "Fetch a supplier by ID",
     request: {
       params: z.object({
         id: z.string(),
@@ -15,39 +16,84 @@ export class SupplierFetch extends OpenAPIRoute {
       "200": {
         description: "Supplier found",
       },
+      "401": {
+        description: "Unauthorized",
+      },
+      "403": {
+        description: "Forbidden",
+      },
       "404": {
         description: "Supplier not found",
+      },
+      "500": {
+        description: "Internal server error",
       },
     },
   };
 
   async handle(c: AppContext) {
+    // ── Authentication & Authorization ──
+    const secret = c.env.JWT_SECRET;
+    if (!secret) {
+      return c.json({ success: false, message: "Server misconfiguration" }, 500);
+    }
+
+    const authHeader = c.req.header("Authorization") ?? "";
+    const token = authHeader.replace("Bearer ", "").trim();
+    if (!token) {
+      return c.json({ success: false, message: "Unauthorized" }, 401);
+    }
+
+    const payload = await verifyJWT(token, secret);
+    if (!payload) {
+      return c.json({ success: false, message: "Invalid or expired token" }, 401);
+    }
+
+    // Check role (Admin, Manager, or Viewer)
+    const user = await c.env.DB
+      .prepare("SELECT role FROM users WHERE id = ?")
+      .bind(payload.sub)
+      .first<{ role: string }>();
+
+    if (!user || (user.role !== "Admin" && user.role !== "Manager" && user.role !== "Viewer")) {
+      return c.json({ success: false, message: "Forbidden: Insufficient permissions" }, 403);
+    }
+
+    // ── Fetch supplier ──
     const data = await this.getValidatedData<typeof this.schema>();
     const { id } = data.params;
 
-    const supplier = await c.env.DB
-      .prepare(
-        `SELECT
-          id,
-          name,
-          email,
-          phone,
-          company,
-          country,
-          created_at
-        FROM suppliers
-        WHERE id = ?`
-      )
-      .bind(id)
-      .first();
+    try {
+      const supplier = await c.env.DB
+        .prepare(
+          `SELECT
+             id,
+             name,
+             email,
+             phone,
+             company,
+             country,
+             created_at
+           FROM suppliers
+           WHERE id = ?`
+        )
+        .bind(id)
+        .first();
 
-    if (!supplier) {
+      if (!supplier) {
+        return c.json({ success: false, message: "Supplier not found" }, 404);
+      }
+
+      return c.json({
+        success: true,
+        supplier,
+      });
+    } catch (error) {
+      console.error("Supplier fetch failed:", error);
       return c.json(
-        { success: false, message: "Supplier not found" },
-        404
+        { success: false, message: "Failed to fetch supplier" },
+        500
       );
     }
-
-    return c.json({ success: true, supplier });
   }
 }
