@@ -55,8 +55,14 @@ import {
   managerOrAbove,
   viewerOrAbove,
 } from "./middleware/roles";
+import type { AuthVariables } from "./middleware/auth";
+import type { Env } from "./types";
 
-const app = new Hono();
+// ── Typed Hono app ────────────────────────────────────────────
+const app = new Hono<{
+  Bindings: Env;
+  Variables: AuthVariables;
+}>();
 
 // CORS
 app.use(
